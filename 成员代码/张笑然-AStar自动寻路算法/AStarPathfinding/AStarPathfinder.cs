@@ -2,99 +2,93 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-public class AStarPathfinder
+namespace AStarPathfinding
 {
-    private GridMap grid;
-
-    // 移动代价常量（避免魔法数字）
-    private const int STRAIGHT_COST = 10;
-    private const int DIAGONAL_COST = 14;
-
-    public AStarPathfinder(GridMap grid)
+    public class AStarPathfinder
     {
-        this.grid = grid;
-    }
+        private GridMap map; // 地图引用，用来获取节点和邻居
 
-    /// <summary>
-    /// 使用 A* 算法寻找最短路径
-    /// 核心公式：
-    /// f(n) = g(n) + h(n)
-    /// g(n)：起点到当前节点的实际代价
-    /// h(n)：当前节点到终点的估算代价
-    /// </summary>
-    public List<Node> FindPath(Node start, Node end)
-    {
-        List<Node> openList = new List<Node>();
-        HashSet<Node> closedList = new HashSet<Node>();
-
-        openList.Add(start);
-
-        while (openList.Count > 0)
+        public AStarPathfinder(GridMap map)
         {
-            // TODO:
-            // 当前使用 List 查找最小 fCost，时间复杂度 O(n)
-            // 可优化为优先队列（最小堆）提升性能
-            Node current = openList.OrderBy(n => n.fCost).First();
+            this.map = map;
+        }
 
-            openList.Remove(current);
-            closedList.Add(current);
+        public List<Node> FindPath(Node start,Node end)
+        {
+            List<Node> openList = new List<Node>();        
+            HashSet<Node> closedList = new HashSet<Node>(); 
 
-            if (current == end)
-                return RetracePath(start, end);
+            openList.Add(start); // 起点先加入开放列表
 
-            foreach (Node neighbor in grid.GetNeighbors(current))
+            while (openList.Count>0f)
             {
-                if (!neighbor.walkable || closedList.Contains(neighbor))
-                    continue;
+                // 从开放列表中选一个 fCost 最小的节点
+                Node current = openList.OrderBy(n =>n.fCost).First();
 
-                int newCost = current.gCost + GetDistance(current, neighbor);
+                // 如果已经走到终点，开始回溯路径
+                if (current == end)
+                    return RetracePath(start, end);
 
-                if (newCost < neighbor.gCost || !openList.Contains(neighbor))
+                // 当前节点处理完，移到关闭列表
+                openList.Remove(current);
+                closedList.Add(current);
+
+                // 遍历当前节点的所有邻居
+                foreach (Node neighbor in map.GetNeighbors(current))
                 {
-                    neighbor.gCost = newCost;
-                    neighbor.hCost = GetDistance(neighbor, end);
-                    neighbor.parent = current;
+                    // 不可走 或 已经处理过的直接跳过
+                    if (!neighbor.walkable || closedList.Contains(neighbor))
+                        continue;
 
-                    if (!openList.Contains(neighbor))
-                        openList.Add(neighbor);
+                    // 计算从起点 -> 当前 -> 邻居 的新代价
+                    int newCost = current.gCost + GetDistance(current, neighbor);
+
+                    // 如果找到更优路径 或 邻居不在开放列表中
+                    if (newCost < neighbor.gCost||!openList.Contains(neighbor))
+                    {
+                        neighbor.gCost = newCost;                      // 更新G值
+                        neighbor.hCost = GetDistance(neighbor, end);   // 计算H值（到终点的估价）
+                        neighbor.CalculateFCost();                     // 更新F = G + H
+                        neighbor.parent = current;                     // 记录路径来源（用于回溯）
+
+                        // 如果还没加入开放列表，就加进去
+                        if (!openList.Contains(neighbor))
+                            openList.Add(neighbor);
+                    }
                 }
             }
+
+            // 如果走到这里说明没有路径
+            return null;
         }
 
-        // 如果 openList 为空仍未找到路径，说明目标不可达
-        return null;
-    }
-
-    /// <summary>
-    /// 回溯路径（从终点往回找）
-    /// </summary>
-    private List<Node> RetracePath(Node start, Node end)
-    {
-        List<Node> path = new List<Node>();
-        Node current = end;
-
-        while (current != start)
+        private List<Node> RetracePath(Node start,Node end)
         {
-            path.Add(current);
-            current = current.parent;
+            List<Node> path = new List<Node>();
+            Node current = end;
+
+            // 一直往父节点走，直到回到起点
+            while (current != start)
+            {
+                path.Add(current);
+                current = current.parent;
+            }
+
+            path.Add(start); // 把起点也加进去
+            path.Reverse();  // 反转成 正向路径（起点 -> 终点）
+            return path;
         }
 
-        path.Reverse();
-        return path;
-    }
+        private int GetDistance(Node a,Node b)
+        {
+            int dx = Math.Abs(a.x-b.x);
+            int dy = Math.Abs(a.y-b.y);
 
-    /// <summary>
-    /// 计算两个节点之间的距离（对角距离）
-    /// </summary>
-    private int GetDistance(Node a, Node b)
-    {
-        int dx = Math.Abs(a.x - b.x);
-        int dy = Math.Abs(a.y - b.y);
+            // 这里是经典A*写法：优先走对角，再走直线
+            if (dx > dy)
+                return 14*dy+10*(dx-dy);
 
-        // 对角优先（A*常用优化）
-        if (dx > dy)
-            return DIAGONAL_COST * dy + STRAIGHT_COST * (dx - dy);
-
-        return DIAGONAL_COST * dx + STRAIGHT_COST * (dy - dx);
+            return 14*dx+10*(dy-dx);
+        }
     }
 }
